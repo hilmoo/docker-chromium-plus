@@ -1,0 +1,19 @@
+services:
+  chrome:
+    image: ghcr.io/hilmoo/docker-chromium-plus:latest
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: chrome
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+      - CHROME_CLI=--user-data-dir=/tmp/chrome-mcp --remote-debugging-port=9222
+      - SELKIES_MANUAL_WIDTH=1920
+      - SELKIES_MANUAL_HEIGHT=1080
+    shm_size: "1gb"
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+      - "8080:8080"
