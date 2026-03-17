@@ -37,8 +37,12 @@ func screenshotHandler(w http.ResponseWriter, r *http.Request) {
 func main() {
 	http.HandleFunc("/screenshot", screenshotHandler)
 
-	port := ":8080"
-	fmt.Println("Screenshot API running at http://localhost" + port)
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	formattedPort := ":" + port
+	fmt.Printf("Screenshot API running at http://localhost%s\n", formattedPort)
 
-	log.Fatal(http.ListenAndServe(port, nil))
+	log.Fatal(http.ListenAndServe(formattedPort, nil))
 }
