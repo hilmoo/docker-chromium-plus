@@ -12,8 +12,6 @@ import (
 	"syscall"
 	"time"
 
-	_ "net/http/pprof"
-
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
