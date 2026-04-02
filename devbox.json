@@ -1,11 +1,14 @@
 {
   "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.16.0/.schema/devbox.schema.json",
   "packages": [
-    "go@1.26.0"
+    "go@1.26.0",
+    "nodejs@24"
   ],
   "shell": {
     "init_hook": [
-      "export \"GOROOT=$(go env GOROOT)\""
+      "export \"GOROOT=$(go env GOROOT)\"",
+      "export NPM_CONFIG_PREFIX=\"$PWD/.devbox/.npm-global\"",
+      "export PATH=\"$PWD/.devbox/.npm-global/bin:$PATH\""
     ]
   },
   "env_from": ".env"

@@ -1,26 +1,61 @@
 package main
 
 import (
-	"fmt"
+	"context"
+	"errors"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
+	"syscall"
+	"time"
+
+	_ "net/http/pprof"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-func screenshotHandler(w http.ResponseWriter, r *http.Request) {
+const MCPVersion = "0.21.0"
+
+type config struct {
+	ApiPort    string
+	ChromePort string
+}
+
+type app struct {
+	cfg config
+}
+
+func getEnv(key, defaultValue string) string {
+	if value, exists := os.LookupEnv(key); exists {
+		return value
+	}
+	return defaultValue
+}
+
+func loadConfig() config {
+	return config{
+		ApiPort:    getEnv("API_PORT", "8080"),
+		ChromePort: getEnv("CHROME_PORT", "9222"),
+	}
+}
+
+func (a *app) screenshotHandler(w http.ResponseWriter, r *http.Request) {
 	cmd := exec.Command("scrot", "-")
 	cmd.Env = append(os.Environ(), "DISPLAY=:1")
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		http.Error(w, "Failed to capture screenshot", 500)
+		slog.Error("Failed to create stdout pipe for scrot", "error", err)
+		http.Error(w, "Failed to capture screenshot", http.StatusInternalServerError)
 		return
 	}
 
 	if err := cmd.Start(); err != nil {
-		http.Error(w, "Failed to start scrot", 500)
+		slog.Error("Failed to start scrot command", "error", err)
+		http.Error(w, "Failed to start scrot", http.StatusInternalServerError)
 		return
 	}
 
@@ -28,21 +63,79 @@ func screenshotHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 
 	if _, err := io.Copy(w, stdout); err != nil {
-		log.Println("stream error:", err)
+		slog.Error("Stream error while copying screenshot data", "error", err)
 	}
 
 	cmd.Wait()
 }
 
 func main() {
-	http.HandleFunc("/screenshot", screenshotHandler)
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	}))
+	slog.SetDefault(logger)
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
+	cfg := loadConfig()
+	app := &app{cfg: cfg}
+
+	http.HandleFunc("/screenshot", app.screenshotHandler)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	stdioSession, err := newStdio(ctx, cfg)
+	if err != nil {
+		slog.Error("Failed to establish stdio session", "error", err)
+		os.Exit(1)
 	}
-	formattedPort := ":" + port
-	fmt.Printf("Screenshot API running at http://localhost%s\n", formattedPort)
+	defer stdioSession.Close()
 
-	log.Fatal(http.ListenAndServe(formattedPort, nil))
+	proxyServer := newServer(stdioSession, logger)
+	mcpHandler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
+		return proxyServer
+	}, &mcp.StreamableHTTPOptions{JSONResponse: true, Logger: logger})
+	http.Handle("/mcp", intercept204(mcpHandler))
+
+	port := ":" + cfg.ApiPort
+
+	srv := &http.Server{
+		Addr: port,
+	}
+
+	serverErrors := make(chan error, 1)
+
+	go func() {
+		slog.Info("API server starting", "port", port)
+		serverErrors <- srv.ListenAndServe()
+	}()
+
+	shutdown := make(chan os.Signal, 1)
+	signal.Notify(shutdown, os.Interrupt, syscall.SIGTERM)
+
+	select {
+	case err := <-serverErrors:
+		if !errors.Is(err, http.ErrServerClosed) {
+			slog.Error("Server failed to start or crashed", "error", err)
+			os.Exit(1)
+		}
+
+	case sig := <-shutdown:
+		slog.Info("Shutdown signal received, initiating graceful shutdown", "signal", sig)
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer shutdownCancel()
+
+		if err := srv.Shutdown(shutdownCtx); err != nil {
+			slog.Error("Graceful shutdown failed, forcing close", "error", err)
+
+			if err := srv.Close(); err != nil {
+				slog.Error("Error forcing server to close", "error", err)
+			}
+		} else {
+			slog.Info("HTTP server stopped gracefully")
+		}
+
+		cancel()
+	}
+
+	slog.Info("Application exited")
 }

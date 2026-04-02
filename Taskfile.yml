@@ -8,5 +8,9 @@ vars:
 tasks:
   default:
     cmds:
-      - echo "{{.GREETING}}"
-    silent: true
+      - go run .
+    dir: api
+
+  init:
+    cmds:
+      - npm i -g chrome-devtools-mcp@0.21.0
