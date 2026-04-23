@@ -103,7 +103,7 @@ func main() {
 	app := &app{cfg: cfg}
 
 	http.HandleFunc("/screenshot", app.screenshotHandler)
-	http.HandleFunc("/browser", app.proxyHandler)
+	http.HandleFunc("/browser/{path...}", app.proxyHandler)
 	http.HandleFunc("/health", app.healthHandler)
 
 	ctx, cancel := context.WithCancel(context.Background())
