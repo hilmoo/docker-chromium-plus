@@ -6,8 +6,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"net/http/httputil"
-	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -69,25 +67,6 @@ func (a *app) screenshotHandler(w http.ResponseWriter, r *http.Request) {
 	cmd.Wait()
 }
 
-func (a *app) proxyHandler(w http.ResponseWriter, r *http.Request) {
-	url, err := url.Parse("http://localhost:3000")
-	if err != nil {
-		slog.Error("Failed to parse target URL for proxy", "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	proxy := &httputil.ReverseProxy{
-		Rewrite: func(pr *httputil.ProxyRequest) {
-			pr.SetURL(url)
-
-			pr.Out.URL.Path = "/"
-		},
-	}
-
-	proxy.ServeHTTP(w, r)
-}
-
 func (a *app) healthHandler(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("OK"))
@@ -103,7 +82,6 @@ func main() {
 	app := &app{cfg: cfg}
 
 	http.HandleFunc("/screenshot", app.screenshotHandler)
-	http.HandleFunc("/browser/{path...}", app.proxyHandler)
 	http.HandleFunc("/health", app.healthHandler)
 
 	ctx, cancel := context.WithCancel(context.Background())
