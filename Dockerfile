@@ -11,7 +11,7 @@ ENV NODE_VERSION=v24.14.1
 ENV DISTRO=linux-x64
 
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends xz-utils wget scrot && \
+    apt-get install -y --no-install-recommends xz-utils wget grim && \
     # Install Node.js
     wget -q https://nodejs.org/dist/$NODE_VERSION/node-$NODE_VERSION-$DISTRO.tar.xz && \
     mkdir -p /usr/local/lib/nodejs && \
@@ -37,6 +37,11 @@ RUN mkdir -p /etc/s6-overlay/s6-rc.d/api \
 
 COPY api/s6/type /etc/s6-overlay/s6-rc.d/api/type
 COPY api/s6/run  /etc/s6-overlay/s6-rc.d/api/run
-
-RUN chmod +x /etc/s6-overlay/s6-rc.d/api/run \
+RUN sed -i 's/\r$//' /etc/s6-overlay/s6-rc.d/api/run /etc/s6-overlay/s6-rc.d/api/type \
+    && chmod +x /etc/s6-overlay/s6-rc.d/api/run \
     && touch /etc/s6-overlay/s6-rc.d/user/contents.d/api
+
+# View-only mode: patch nginx init to force the viewer role when VIEW_ONLY=true
+COPY docker/viewonly.snippet /tmp/viewonly.snippet
+RUN sed -i '/s\/CWS\//r /tmp/viewonly.snippet' /etc/s6-overlay/s6-rc.d/init-nginx/run \
+    && rm /tmp/viewonly.snippet

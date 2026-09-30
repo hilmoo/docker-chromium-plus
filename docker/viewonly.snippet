@@ -1,0 +1,4 @@
+# VIEW_ONLY: force every Selkies websocket to the viewer role (no keyboard/mouse/clipboard/gamepad input)
+if [ "${VIEW_ONLY,,}" = "true" ]; then
+  sed -i "s#proxy_pass              http://127.0.0.1:${CWS};#proxy_pass http://127.0.0.1:${CWS}\$uri?role=viewer\&\$args;#" ${NGINX_CONFIG}
+fi

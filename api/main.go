@@ -1,9 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
-	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -41,30 +41,28 @@ func loadConfig() config {
 }
 
 func (a *app) screenshotHandler(w http.ResponseWriter, r *http.Request) {
-	cmd := exec.Command("scrot", "-")
-	cmd.Env = append(os.Environ(), "DISPLAY=:1")
+	cmd := exec.CommandContext(r.Context(), "grim", "-")
+	cmd.Env = append(os.Environ(),
+		"XDG_RUNTIME_DIR=/config/.XDG",
+		"WAYLAND_DISPLAY=wayland-0",
+	)
 
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		slog.Error("Failed to create stdout pipe for scrot", "error", err)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+
+	// Buffer the output so a failed capture returns an error instead of an empty 200.
+	out, err := cmd.Output()
+	if err != nil || len(out) == 0 {
+		slog.Error("Failed to capture screenshot", "error", err, "stderr", stderr.String())
 		http.Error(w, "Failed to capture screenshot", http.StatusInternalServerError)
-		return
-	}
-
-	if err := cmd.Start(); err != nil {
-		slog.Error("Failed to start scrot command", "error", err)
-		http.Error(w, "Failed to start scrot", http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "image/png")
 	w.Header().Set("Cache-Control", "no-cache")
-
-	if _, err := io.Copy(w, stdout); err != nil {
-		slog.Error("Stream error while copying screenshot data", "error", err)
+	if _, err := w.Write(out); err != nil {
+		slog.Error("Failed to write screenshot response", "error", err)
 	}
-
-	cmd.Wait()
 }
 
 func (a *app) healthHandler(w http.ResponseWriter, _ *http.Request) {

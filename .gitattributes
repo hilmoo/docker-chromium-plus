@@ -1,0 +1,3 @@
+* text=auto
+api/s6/* text eol=lf
+*.go text eol=lf

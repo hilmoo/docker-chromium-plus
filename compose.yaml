@@ -12,6 +12,16 @@ services:
       - CHROME_CLI=--user-data-dir=/tmp/chrome-mcp --remote-debugging-port=9222
       - SELKIES_MANUAL_WIDTH=1920
       - SELKIES_MANUAL_HEIGHT=1080
+      # Keep Chrome running: watchdog respawns it and the close button is removed
+      - RESTART_APP=true
+      - DISABLE_CLOSE_BUTTON=true
+      - HARDEN_KEYBINDS=true
+      # Read-only stream: every browser client is forced to the Selkies viewer role
+      - VIEW_ONLY=true
+      - SELKIES_ENABLE_CLIPBOARD=false
+      - SELKIES_GAMEPAD_ENABLED=false
+      - SELKIES_MICROPHONE_ENABLED=false
+      - SELKIES_ENABLE_SHARING=false
     shm_size: "1gb"
     restart: unless-stopped
     ports:
