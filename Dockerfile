@@ -4,7 +4,7 @@ WORKDIR /app
 COPY api .
 RUN go build -o app .
 
-FROM ghcr.io/linuxserver/chromium:version-09bef544
+FROM ghcr.io/linuxserver/chromium:version-d759a0f5
 
 # Node.js installation
 ENV NODE_VERSION=v24.14.1
